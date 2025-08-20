@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   MessageCircle,
   Plus,
@@ -8,6 +8,7 @@ import {
   User,
   Calendar,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -18,197 +19,173 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
+  SidebarMenuAction,
+  SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-
-interface Chat {
-  id: string;
-  name: string;
-  title: string;
-  company: string;
-  lastMessage: string;
-  timestamp: string;
-  unread: number;
-  linkedin?: string;
-  twitter?: string;
-  website?: string;
-}
-
-const savedChats: Chat[] = [
-  {
-    id: "1",
-    name: "Adithya S Kolavi",
-    title: "AI Researcher",
-    company: "CognitiveLab",
-    lastMessage: "Research about AI and Indic LLM Leaderboard",
-    timestamp: "2h ago",
-    unread: 0,
-    linkedin: "https://in.linkedin.com/in/adithya-s-kolavi",
-    website: "https://adithyask.com/",
-  },
-  {
-    id: "2",
-    name: "Michael Rodriguez",
-    title: "VP Engineering",
-    company: "DataCore",
-    lastMessage: "Technical leadership insights",
-    timestamp: "1d ago",
-    unread: 2,
-  },
-  {
-    id: "3",
-    name: "Emily Zhang",
-    title: "Marketing Director",
-    company: "GrowthLabs",
-    lastMessage: "Growth marketing strategies",
-    timestamp: "3d ago",
-    unread: 0,
-  },
-  {
-    id: "4",
-    name: "Sarah Chen",
-    title: "Product Manager",
-    company: "TechFlow Inc.",
-    lastMessage: "Research about B2B product strategy",
-    timestamp: "1w ago",
-    unread: 1,
-  },
-];
+import { useChatContext } from "@/contexts/ChatContext";
 
 interface AppSidebarProps {
-  onPersonSelect?: (person: Chat) => void;
+  onPersonSelect?: (profile: any) => void;
 }
 
 export function AppSidebar({ onPersonSelect }: AppSidebarProps = {}) {
-  const { state } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedChatId, setSelectedChatId] = useState("1");
+  const {
+    conversations,
+    currentConversationId,
+    createNewConversation,
+    switchConversation,
+    deleteConversation,
+  } = useChatContext();
 
-  const filteredChats = savedChats.filter(
-    (chat) =>
-      chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.company.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredConversations = conversations.filter(
+    (conv) =>
+      conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.preview.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.profile?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.profile?.company?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60)
+    );
+
+    if (diffInMinutes < 1) return "Just now";
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+
+    return `${Math.floor(diffInDays / 7)}w ago`;
+  };
+
+  const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
-  return (
-    <Sidebar collapsible="icon" className="border-r">
-      <SidebarContent>
-        {!isCollapsed && (
-          <div className="p-4 border-b">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-medium">Contacts</h2>
-              <Button size="icon" variant="ghost" className="h-8 w-8">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Search contacts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        )}
+  const handleConversationClick = useCallback((conversationId: string, profile?: any) => {
+    switchConversation(conversationId);
+    if (profile) {
+      onPersonSelect?.(profile);
+    }
+  }, [switchConversation, onPersonSelect]);
 
+  const handleDeleteConversation = useCallback((e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation();
+    deleteConversation(conversationId);
+  }, [deleteConversation]);
+
+  const handleCreateNew = useCallback(() => {
+    createNewConversation();
+  }, [createNewConversation]);
+
+  return (
+    <Sidebar collapsible="icon">
+      {!isCollapsed && (<SidebarHeader>
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Chats</h2>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={handleCreateNew}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            placeholder="Search chats..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </SidebarHeader>
+      )}
+      <SidebarContent>
         <SidebarGroup>
-          {!isCollapsed && (
-            <SidebarGroupLabel className="px-4 py-2 text-xs font-medium text-muted-foreground">
-              Recent Conversations
-            </SidebarGroupLabel>
-          )}
+          <SidebarGroupLabel>
+            Recent Chats ({conversations.length})
+          </SidebarGroupLabel>
 
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredChats.map((chat) => (
-                <SidebarMenuItem key={chat.id}>
-                  <SidebarMenuButton
-                    className={`
-            group relative p-3 h-fit rounded-lg transition-all duration-200 cursor-pointer
-            border border-transparent hover:border-border/50
-            ${
-              chat.id === selectedChatId
-                ? "bg-accent text-accent-foreground border-border shadow-sm"
-                : "hover:bg-accent/50"
-            }
-          `}
-                    onClick={() => {
-                      setSelectedChatId(chat.id);
-                      onPersonSelect?.(chat);
-                    }}
-                  >
-                    {isCollapsed ? (
-                      <div className="relative flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
-                        {chat.unread > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="absolute -top-1 -right-1 h-4 min-w-4 text-xs px-1 animate-pulse"
-                          >
-                            {chat.unread}
-                          </Badge>
+              {filteredConversations.length === 0 ? (
+                <SidebarMenuItem>
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No chats yet.
+                    <br />
+                                         <Button
+                       variant="ghost"
+                       size="sm"
+                       className="mt-2"
+                       onClick={handleCreateNew}
+                     >
+                      Start one now
+                    </Button>
+                  </div>
+                </SidebarMenuItem>
+              ) : (
+                filteredConversations.map((conversation) => (
+                  <SidebarMenuItem key={conversation.id}>
+                    <SidebarMenuButton
+                      isActive={conversation.id === currentConversationId}
+                      tooltip={conversation.profile?.name || conversation.title}
+                      onClick={() => handleConversationClick(conversation.id, conversation.profile)}
+                      className={`h-auto flex-col items-start p-3 ${conversation.id === currentConversationId ? "bg-gray-200 shadow-gray-300 shadow-md border-t" : ""}`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        {conversation.profile ? (
+                          <User className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <MessageCircle className="h-4 w-4 flex-shrink-0" />
                         )}
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3 w-full min-w-0">
-                        <div className="relative flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                            <User className="h-4 w-4 text-primary" />
-                          </div>
-                          {chat.unread > 0 && (
-                            <Badge
-                              variant="destructive"
-                              className="absolute -top-1 -right-1 h-4 min-w-4 text-xs px-1 animate-pulse"
-                            >
-                              {chat.unread}
-                            </Badge>
+                        <div className="flex flex-col flex-1 min-w-0 text-left">
+                          <span className="font-medium text-sm truncate">
+                            {conversation.profile?.name || conversation.title}
+                          </span>
+                          {conversation.profile && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {conversation.profile.title}
+                              {conversation.profile.company &&
+                                ` • ${conversation.profile.company}`}
+                            </span>
                           )}
                         </div>
-
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <h3 className="font-semibold text-sm truncate text-foreground">
-                              {chat.name}
-                            </h3>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {(chat.linkedin || chat.website) && (
-                                <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <p className="text-xs font-medium text-muted-foreground truncate">
-                              {chat.title} {chat.company && `• ${chat.company}`}
-                            </p>
-
-                            <p className="text-xs text-muted-foreground/80 truncate leading-tight">
-                              {chat.lastMessage}
-                            </p>
-
-                            <div className="flex items-center gap-1 pt-0.5">
-                              <Calendar className="h-3 w-3 text-muted-foreground/60" />
-                              <span className="text-xs text-muted-foreground/60 font-mono">
-                                {chat.timestamp}
-                              </span>
-                            </div>
-                          </div>
+                        {conversation.profile?.links && (
+                          <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 opacity-60" />
+                        )}
+                      </div>
+                      <div className="w-full mt-1 space-y-1">
+                        <span className="text-xs text-muted-foreground/80 line-clamp-2 text-left">
+                          {conversation.preview}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-muted-foreground/60" />
+                          <span className="text-xs text-muted-foreground/60">
+                            {formatTimeAgo(conversation.updatedAt)}
+                          </span>
                         </div>
                       </div>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                    </SidebarMenuButton>
+                    <SidebarMenuAction
+                      showOnHover
+                      onClick={(e) => handleDeleteConversation(e, conversation.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </SidebarMenuAction>
+                  </SidebarMenuItem>
+                ))
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
