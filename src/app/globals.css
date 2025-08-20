@@ -112,6 +112,12 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.dialog-extra-wide {
+  width: min(1000px, 95vw) !important;
+  max-width: min(1000px, 95vw) !important;
+  min-width: min(1000px, 95vw) !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

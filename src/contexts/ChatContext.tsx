@@ -23,6 +23,20 @@ export interface PersonProfile {
   };
 }
 
+export interface EmailData {
+  subject: string;
+  body: string;
+  isHtml: boolean;
+  preview: string;
+  recipientEmail: string;
+  recipientName?: string;
+  emailType: string;
+  cc?: string[];
+  bcc?: string[];
+  wasSent?: boolean;
+  sentAt?: Date;
+}
+
 export interface Message {
   id: string;
   type: "user" | "assistant";
@@ -30,6 +44,7 @@ export interface Message {
   timestamp: Date;
   searchResults?: SearchResult[];
   profile?: PersonProfile;
+  emailData?: EmailData;
 }
 
 export interface Conversation {
@@ -40,6 +55,7 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   preview: string; // Last message preview
+  emails?: EmailData[]; // All composed emails for this conversation
 }
 
 interface ChatContextType {
@@ -55,6 +71,10 @@ interface ChatContextType {
   updateConversationProfile: (profile: PersonProfile) => void;
   deleteConversation: (conversationId: string) => void;
   clearAllConversations: () => void;
+  
+  // Email actions
+  saveEmailToConversation: (emailData: EmailData) => void;
+  updateEmailInConversation: (emailData: EmailData, emailIndex?: number) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -196,6 +216,70 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentConversationId(null);
   }, []);
 
+  const saveEmailToConversation = useCallback((emailData: EmailData) => {
+    if (!currentConversationId) return;
+
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === currentConversationId) {
+        const updatedEmails = [...(conv.emails || []), emailData];
+        
+        // Also add an email message to the conversation
+        const emailMessage: Message = {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: "assistant",
+          content: `📧 Email composed: ${emailData.subject}`,
+          timestamp: new Date(),
+          emailData,
+        };
+
+        return {
+          ...conv,
+          emails: updatedEmails,
+          messages: [...conv.messages, emailMessage],
+          updatedAt: new Date(),
+          preview: `📧 Email: ${emailData.subject}`,
+        };
+      }
+      return conv;
+    }));
+  }, [currentConversationId]);
+
+  const updateEmailInConversation = useCallback((emailData: EmailData, emailIndex?: number) => {
+    if (!currentConversationId) return;
+
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === currentConversationId) {
+        const updatedEmails = [...(conv.emails || [])];
+        
+        if (emailIndex !== undefined && emailIndex >= 0 && emailIndex < updatedEmails.length) {
+          updatedEmails[emailIndex] = emailData;
+        } else {
+          // Find the most recent email and update it
+          const lastEmailIndex = updatedEmails.length - 1;
+          if (lastEmailIndex >= 0) {
+            updatedEmails[lastEmailIndex] = emailData;
+          }
+        }
+
+        // Update the corresponding message as well
+        const updatedMessages = conv.messages.map(msg => {
+          if (msg.emailData && msg.emailData.subject === emailData.subject) {
+            return { ...msg, emailData, content: `📧 Email composed: ${emailData.subject}` };
+          }
+          return msg;
+        });
+
+        return {
+          ...conv,
+          emails: updatedEmails,
+          messages: updatedMessages,
+          updatedAt: new Date(),
+        };
+      }
+      return conv;
+    }));
+  }, [currentConversationId]);
+
   const currentConversation = conversations.find(conv => conv.id === currentConversationId) || null;
 
   const value: ChatContextType = {
@@ -209,6 +293,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateConversationProfile,
     deleteConversation,
     clearAllConversations,
+    saveEmailToConversation,
+    updateEmailInConversation,
   };
 
   return (
